@@ -3,6 +3,7 @@ package com.tpc;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import com.tpc.util.Config;
@@ -27,7 +28,7 @@ public class ThreePhaseCommitProcess {
 			throw new IllegalArgumentException("please provide intial co-ordinator id and current process id");
 		}
 		try {
-			NetController netController = new NetController(new Config("config_"+args[1]+".txt"));			
+			NetController netController = new NetController(new Config("C:\\Users\\vignesh\\git\\ThreePhaseCommitProtocol\\ThreePhaseCommit\\bin\\com\\tpc\\util\\"+"config_"+args[1]+".txt"));			
 			List<Integer> activeProcesses = new ArrayList<Integer>();
 			Map<String,String> playList;
 			int processId = Integer.parseInt(args[0]);
@@ -49,7 +50,7 @@ public class ThreePhaseCommitProcess {
 					for(Integer participant : participants) {
 						boolean sendStatus = netController.sendMsg(participant, ThreePhaseCommitUtility.serializeMessage(message));
 						if(!sendStatus) {
-							log.log(null, "send to process"+participant+" failed");
+							log.log(Level.INFO, "send to process"+participant+" failed");
 						}
 					}
 					
