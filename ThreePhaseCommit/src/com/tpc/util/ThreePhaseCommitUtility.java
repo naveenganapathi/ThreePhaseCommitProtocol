@@ -96,6 +96,12 @@ public class ThreePhaseCommitUtility {
 		return res;
 	}
 
+	/**
+	 * To fetch the local state of a process 
+	 * @param processId
+	 * @return
+	 * @throws IOException
+	 */
 	public static HashMap<String,String> fetchLocalState(int processId) throws IOException{
 		HashMap<String,String> playList = new HashMap<String,String>();
 		BufferedReader br = null;		
@@ -103,9 +109,8 @@ public class ThreePhaseCommitUtility {
 		br = new BufferedReader(new FileReader(LOCAL_STATE_FILENAME + "" + processId + ".txt"));
 		while ((sCurrentLine = br.readLine()) != null) {
 			String[] playListStr = sCurrentLine.split(";");
-			int playListStrSize = playListStr.length;
-			for(int i=0;i<playListStrSize;i++) {
-				String[] splitList = playListStr[0].split(":");
+			for(String playListEntry : playListStr) {
+				String[] splitList = playListEntry.split(":");
 				playList.put(splitList[0],splitList[1]);
 			}
 		}
@@ -114,6 +119,13 @@ public class ThreePhaseCommitUtility {
 	
 	}
 	
+	/**
+	 * To save the local state of a process
+	 * @param processId
+	 * @param playList
+	 * @return
+	 * @throws IOException
+	 */
 	public static boolean saveLocalState(int processId, HashMap<String,String> playList) throws IOException{
 		if(playList == null) return false;
 		StringBuffer sb = new StringBuffer();
@@ -130,6 +142,12 @@ public class ThreePhaseCommitUtility {
 		return true;
 	}
 
+	/**
+	 * To get the list of active processes for a process
+	 * @param processId
+	 * @return
+	 * @throws IOException
+	 */
 	public static ArrayList<Integer> getActiveProcess(int processId) throws IOException{
 		BufferedReader br = null;	
 		ArrayList<Integer> processIdList = new ArrayList<Integer>();
@@ -137,21 +155,26 @@ public class ThreePhaseCommitUtility {
 		br = new BufferedReader(new FileReader(ACTIVE_PROCESS_FILENAME + "" + processId + ".txt")); 
 		while ((sCurrentLine = br.readLine()) != null) {
 			String[] psList = sCurrentLine.split(",");
-			int psListSize = psList.length;
-			for(int i=0;i<psListSize;i++) {
-				processIdList.add(Integer.parseInt(psList[i]));
+			for(String psListEntry : psList) {
+				processIdList.add(Integer.parseInt(psListEntry));
 			}
 		}
 		br.close();
 		return processIdList;
 	}
 
+	/**
+	 * To save the list of active proceesses for a process
+	 * @param processId
+	 * @param processIdList
+	 * @return
+	 * @throws IOException
+	 */
 	public static boolean saveActiveProcess(int processId, ArrayList<Integer> processIdList) throws IOException{
 		if(processIdList == null || processIdList.isEmpty()) return false;
 		StringBuffer sb = new StringBuffer();
-		int processIdListSize = processIdList.size();
-		for(int i=0;i<processIdListSize;i++) {
-			sb.append(processIdList.get(i));
+		for(int pId : processIdList) {
+			sb.append(pId);
 		}
 		File file = new File(ACTIVE_PROCESS_FILENAME + "" + processId +".txt");
 		if (!file.exists()) {
