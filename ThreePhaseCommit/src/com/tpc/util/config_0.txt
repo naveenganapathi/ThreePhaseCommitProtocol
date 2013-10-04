@@ -1,4 +1,10 @@
 NumProcesses=3
-port=5000
-host=127.0.0.1
-ProcNum=0
+
+port0=5000
+port1=5001
+port2=5002
+
+host0=localhost
+host1=localhost
+host2=localhost
+procNum=0
