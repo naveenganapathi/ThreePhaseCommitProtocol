@@ -3,12 +3,10 @@ package com.tpc.util;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.io.OutputStreamWriter;
-import java.io.Writer;
+import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -28,7 +26,7 @@ public class ThreePhaseCommitUtility {
 		if(message == null)
 			return null;
 		else
-		  return message.getProcessId()+":"+message.getMessage();		
+		  return message.getProcessId()+":"+message.getTransactionId()+":"+message.getMessage();		
 	}
 	
 	/**
@@ -42,8 +40,9 @@ public class ThreePhaseCommitUtility {
 		} else {
 			Message message = new Message();
 			String messageParts[] = rawMessage.split(":");
-			message.setMessage(messageParts[1]);
+			message.setMessage(messageParts[2]);
 			message.setProcessId(Integer.parseInt(messageParts[0]));
+			message.setTransactionId(Integer.parseInt(messageParts[1]));
 			return message;
 		}
 	}
@@ -72,11 +71,10 @@ public class ThreePhaseCommitUtility {
 	 * @return
 	 * @throws IOException 
 	 */
-	public static boolean writeMessageToDTLog (int process, String message) throws IOException {
-		Writer writer = new BufferedWriter(new OutputStreamWriter(
-		          new FileOutputStream(DT_LOG_FILE_PREFIX+process+".txt"), "utf-8"));
-		writer.write(message+"\n");
-		writer.close();
+	public static boolean writeMessageToDTLog (int process,LogRecord record) throws IOException {
+		PrintWriter out = new PrintWriter(new BufferedWriter(new FileWriter(DT_LOG_FILE_PREFIX+process+".txt", true)));
+	    out.println(record.getTransactionId()+":"+record.getMessage());
+	    out.close();
 		return true;
 	}
 	
@@ -86,14 +84,21 @@ public class ThreePhaseCommitUtility {
 	 * @return
 	 * @throws IOException
 	 */
-	public static String fetchMessageFromDTLog(int process) throws IOException  {
+	public static LogRecord fetchMessageFromDTLog(int process) throws IOException  {
 		BufferedReader br = new BufferedReader(new FileReader(DT_LOG_FILE_PREFIX+process+".txt"));
 		String temp,res = null;
 		while((temp = br.readLine()) != null) {
 			res = temp;
 		}
 		br.close();
-		return res;
+		if (res == null) {
+			return null;
+		}
+		String val[] = res.split(":");
+		LogRecord record = new LogRecord();
+		record.setMessage(val[1]);
+		record.setTransactionId(Integer.parseInt(val[0]));
+		return record;
 	}
 
 	/**
