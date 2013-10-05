@@ -277,29 +277,36 @@ public class ThreePhaseCommitProcess {
 		// get co-ordinators state.
 		LogRecord recentLogRecord = ThreePhaseCommitUtility.fetchMessageFromDTLog(processId);
 		String state = recentLogRecord.getMessage();
-		boolean abortFlag, uncertainFlag, commitFlag;
+		boolean abortFlag, uncertainFlag, commitFlag, commitableFlag;
 		abortFlag = uncertainFlag = commitFlag = false;
 		abortFlag = state.equals(ABORT);
 		commitFlag = state.equals(COMMIT);
+		commitableFlag = false;
 		uncertainFlag = abortFlag == false && commitFlag == false;
 		
 		System.out.println("parsing participant states...");
 		// get participant state
+		List<Integer> uncertainProcesses = new ArrayList<Integer>();
 		if (!abortFlag && !commitFlag) {
 			for (String resp : stateReqresponses) {
 				Message msg = ThreePhaseCommitUtility.deserializeMessage(resp);
-				if (msg.getMessage().equals(ABORT)) {
+				if (msg.getMessage().equals(ABORTED)) {
 					abortFlag = true;
 					break;
-				} else if (msg.getMessage().equals(COMMIT)) {
+				} else if (msg.getMessage().equals(COMMITTED)) {
 					commitFlag= true;
 					break;
+				} else if (msg.getMessage().equals(COMMITTABLE)) {
+					commitableFlag = true;
+				} else if (msg.getMessage().equals(UNCERTAIN)) {
+					uncertainFlag = true;
+					uncertainProcesses.add(msg.getProcessId());
 				}
 			}
 		}		
 		
 		
-		if (abortFlag || uncertainFlag) {
+		if (abortFlag) {
 			System.out.println("deciding to abort!");
 			if(!state.equals(ABORT)) {
 				ThreePhaseCommitUtility.writeMessageToDTLog(processId, new LogRecord(currTrans, ABORT));
@@ -314,6 +321,32 @@ public class ThreePhaseCommitProcess {
 			}
 			for (Integer participant : participants) {
 				netController.sendMsg(participant, ThreePhaseCommitUtility.serializeMessage(new Message(processId, currTrans, COMMIT)));
+			}
+		} else if (commitableFlag) {
+			System.out.println("commitable, sending pre commit to uncertain processes.");
+			for (Integer participant : uncertainProcesses) {
+				netController.sendMsg(participant, ThreePhaseCommitUtility.serializeMessage(new Message(processId, currTrans, PRE_COMMIT)));
+			}
+			
+			Timer ackTimer = new Timer();
+			List<String> ackMsgs = new ArrayList<String>();
+			
+			while( ackMsgs.size() != uncertainProcesses.size() || !ackTimer.hasTimedOut() ) {
+				ackMsgs.addAll(netController.getReceivedMsgs());
+			}
+			
+			System.out.println("sending commit to all processes");
+			ThreePhaseCommitUtility.writeMessageToDTLog(processId, new LogRecord(currTrans, COMMIT));
+			for (Integer participant : participants) {
+				netController.sendMsg(participant, ThreePhaseCommitUtility.serializeMessage(new Message(processId, currTrans, COMMIT)));
+			}
+		} else {
+			System.out.println("all of em are uncertain. aborting transaction");
+			if(!state.equals(ABORT)) {
+				ThreePhaseCommitUtility.writeMessageToDTLog(processId, new LogRecord(currTrans, ABORT));
+			}
+			for (Integer participant : participants) {
+				netController.sendMsg(participant, ThreePhaseCommitUtility.serializeMessage(new Message(processId, currTrans, ABORT)));
 			}
 		}
 		
