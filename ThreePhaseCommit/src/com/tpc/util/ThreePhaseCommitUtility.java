@@ -3,6 +3,7 @@ package com.tpc.util;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -102,6 +103,34 @@ public class ThreePhaseCommitUtility {
 	}
 
 	/**
+	 * To fetch the most recent log record for the given transactionId
+	 * from the processLog.
+	 * @param process
+	 * @param transactionId
+	 * @return
+	 * @throws IOException
+	 */
+	public static LogRecord fetchRecordForTransaction(int process, int transactionId) throws IOException {
+		BufferedReader br = new BufferedReader(new FileReader(DT_LOG_FILE_PREFIX+process+".txt"));
+		String temp,res = null;
+		while((temp = br.readLine()) != null) {
+			String transaction = temp.split(":")[0];
+			if (Integer.parseInt(transaction) == transactionId) {
+				res = temp;
+			}			
+		}
+		br.close();
+		if (res == null) {
+			return null;
+		}
+		String val[] = res.split(":");
+		LogRecord record = new LogRecord();
+		record.setMessage(val[1]);
+		record.setTransactionId(Integer.parseInt(val[0]));
+		return record;
+	}
+	
+	/**
 	 * To fetch the local state of a process 
 	 * @param processId
 	 * @return
@@ -123,6 +152,7 @@ public class ThreePhaseCommitUtility {
 		return playList;
 	
 	}
+		
 	
 	/**
 	 * To save the local state of a process

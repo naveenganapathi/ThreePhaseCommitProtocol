@@ -3,8 +3,8 @@ NumProcesses=3
 port0=6000
 port1=6001
 port2=6002
-host0=localhost
-host1=localhost
-host2=localhost
+host0=127.0.0.1
+host1=127.0.0.1
+host2=127.0.0.1
 
 procNum=1

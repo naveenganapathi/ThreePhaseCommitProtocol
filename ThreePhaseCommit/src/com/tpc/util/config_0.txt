@@ -4,7 +4,7 @@ port0=5000
 port1=5001
 port2=5002
 
-host0=localhost
-host1=localhost
-host2=localhost
+host0=127.0.0.1
+host1=127.0.0.1
+host2=127.0.0.1
 procNum=0

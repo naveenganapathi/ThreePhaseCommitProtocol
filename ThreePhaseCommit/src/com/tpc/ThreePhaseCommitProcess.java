@@ -1,5 +1,6 @@
 package com.tpc;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -26,7 +27,11 @@ public class ThreePhaseCommitProcess {
 	public static final String ABORT = "ABORT";
 	public static final String YES = "YES";
 	public static final String NO = "NO";
+	public static final String ABORTED = "ABORTED";
 	public static final String ACK = "ACK";
+	public static final String COMMITTED = "COMMITTED";
+	public static final String COMMITTABLE = "COMMITTABLE";
+	public static final String UNCERTAIN = "UNCERTAIN";
 	public static final String NEW_CO_OD = "NEW_CO_OD";
 	public static final int TIME_OUT_IN_SECONDS = 2000;
 	private static final Logger log = Logger.getLogger("ThreePhaseCommitProcess");
@@ -63,8 +68,9 @@ public class ThreePhaseCommitProcess {
 						ThreePhaseCommitUtility.writeMessageToDTLog(processId, new LogRecord(currTrans, "start-3PC"));
 						List<Integer> participants = new ArrayList<Integer>(activeProcesses);
 						System.out.println("starting new transaction!");
-						participants.remove(processId);
+						participants.remove(processId);					
 						// Send VOTE REQ to all participants
+						System.out.println("sending vote requests!");
 						for (Integer participant : participants) {
 							boolean sendStatus = netController.sendMsg(participant, ThreePhaseCommitUtility.serializeMessage(message));
 							if (!sendStatus) {
@@ -82,6 +88,7 @@ public class ThreePhaseCommitProcess {
 
 						// some process timed out. aborting
 						if (reportMessages.size() != NUM_PARTICIPANTS) {
+							System.out.println("a few processes timedout. Hence aborting the transaction");
 							ThreePhaseCommitUtility.writeMessageToDTLog(processId, new LogRecord(currTrans, ABORT));
 							for (String rawMessage : reportMessages) {
 								Message msg = ThreePhaseCommitUtility.deserializeMessage(rawMessage);
@@ -97,15 +104,18 @@ public class ThreePhaseCommitProcess {
 						List<Message> againstMessages = new ArrayList<Message>();
 						for (String reportMessage : reportMessages) {
 							Message msg = ThreePhaseCommitUtility.deserializeMessage(reportMessage);
-							if (msg.getMessage().equals(ABORT)) {
+							if (msg.getMessage().equals(NO)) {
+								System.out.println("process "+msg.getProcessId()+"has decided abort");
 								abortFlag = true;
-							} else if (msg.getMessage().equals(COMMIT)) {
+							} else if (msg.getMessage().equals(YES)) {
+								System.out.println("process "+msg.getProcessId()+"is ok with commiting");
 								forMessages.add(msg);
 							}
 						}
 
 						// some processes have decided to abort. ABORT
 						if (abortFlag || !myVote.equals(YES)) {
+							System.out.println("coordinator has decided to abort");
 							ThreePhaseCommitUtility.writeMessageToDTLog(processId, new LogRecord(currTrans, ABORT));
 							for (Message msg : forMessages) {
 								Message abortMessage = new Message(processId, currTrans, ABORT);
@@ -115,6 +125,7 @@ public class ThreePhaseCommitProcess {
 
 						// all processes have sent yes! COMMIT away
 						if (!abortFlag && myVote.equals(YES)) {
+							System.out.println("everyone has sent yes. sending PRE COMMIT");
 							Message preCommitMessage = new Message(processId, currTrans, PRE_COMMIT);
 							for (Integer parts : participants) {
 								netController.sendMsg(parts, ThreePhaseCommitUtility.serializeMessage(preCommitMessage));
@@ -138,9 +149,9 @@ public class ThreePhaseCommitProcess {
 							ThreePhaseCommitUtility.writeMessageToDTLog(processId, new LogRecord(currTrans, COMMIT));
 
 							// send COMMIT to everyone
-							Message commitMessage = new Message(processId, currTrans, COMMIT);
+							System.out.println("sending commit to everyone!");
 							for (Integer parts : participants) {
-								netController.sendMsg(parts, ThreePhaseCommitUtility.serializeMessage(commitMessage));
+								netController.sendMsg(parts, ThreePhaseCommitUtility.serializeMessage(new Message(processId, currTrans, COMMIT)));
 							}
 						}
 					}
@@ -164,7 +175,8 @@ public class ThreePhaseCommitProcess {
 								currentActiveParticipants.remove(oldCoordinatorId);
 								currentActiveParticipants.remove(coordinatorId);
 								coordinatorTerminationProtocol(currentActiveParticipants);
-							}
+								break;
+							} 
 						}
 
 						// if there is some message received
@@ -185,9 +197,11 @@ public class ThreePhaseCommitProcess {
 								ack.setProcessId(processId);
 								ack.setMessage(ACK);
 								netController.sendMsg(coordinatorId, ThreePhaseCommitUtility.serializeMessage(ack));
-								participant_waiting_for = COMMIT;
-								// ThreePhaseCommitUtility.writeMessageToDTLog(processId,
-								// COMMIT);
+								participant_waiting_for=COMMIT;
+								//ThreePhaseCommitUtility.writeMessageToDTLog(processId, COMMIT);
+							}else if(msg.getMessage().equals(NEW_CO_OD)){
+								coordinatorId = msg.getProcessId();
+								participantTermination();
 							}
 						}
 						receivedMsgs.clear();
@@ -226,28 +240,83 @@ public class ThreePhaseCommitProcess {
 		Timer timer = new Timer();
 		timer.setTimeoutInSeconds(TIME_OUT_IN_SECONDS);
 		timer.start();
-		while (receivedMsgs.isEmpty() && !timer.hasTimedOut()) {
-			receivedMsgs.addAll(netController.getReceivedMsgs());
-		}
+		while(true) {
+			while (receivedMsgs.isEmpty() && !timer.hasTimedOut()) {
+				receivedMsgs.addAll(netController.getReceivedMsgs());
+			}
 
-		// if time-out has happened
-		if (timer.hasTimedOut()) {
-
+			// if time-out has happened
+			if (timer.hasTimedOut()) {
+				initiateElection();
+				if (coordinatorId == processId) {
+					// invoke co-ordinator's termination protocol
+					// TODO execute co-ordinator termination algo
+					break;
+				} 
+			}
 		}
 	}
 	
-	public static void coordinatorTerminationProtocol(List<Integer> participants) {
+	public static void coordinatorTerminationProtocol(List<Integer> participants) throws IOException {
 		int totalParticipants = participants.size();
+		
+		// send STATE_REQ to all processes.
+		System.out.println("Starting termination protocol. Co-ordinator is"+processId);
+		System.out.println("sending state request");
 		for(Integer participant : participants) {
 			netController.sendMsg(participant, ThreePhaseCommitUtility.serializeMessage(new Message(coordinatorId, currTrans, STATE_REQ)));
 		}
 		
+		//Wait for all responses or until timeout
 		Timer stateReqTimer = new Timer();
 		List<String> stateReqresponses = new ArrayList<String>();
 		while( stateReqresponses.size() != totalParticipants  && !stateReqTimer.hasTimedOut() ) {
 			stateReqresponses.addAll(netController.getReceivedMsgs());
 		}
 		
+		// get co-ordinators state.
+		LogRecord recentLogRecord = ThreePhaseCommitUtility.fetchMessageFromDTLog(processId);
+		String state = recentLogRecord.getMessage();
+		boolean abortFlag, uncertainFlag, commitFlag;
+		abortFlag = uncertainFlag = commitFlag = false;
+		abortFlag = state.equals(ABORT);
+		commitFlag = state.equals(COMMIT);
+		uncertainFlag = abortFlag == false && commitFlag == false;
 		
+		System.out.println("parsing participant states...");
+		// get participant state
+		if (!abortFlag && !commitFlag) {
+			for (String resp : stateReqresponses) {
+				Message msg = ThreePhaseCommitUtility.deserializeMessage(resp);
+				if (msg.getMessage().equals(ABORT)) {
+					abortFlag = true;
+					break;
+				} else if (msg.getMessage().equals(COMMIT)) {
+					commitFlag= true;
+					break;
+				}
+			}
+		}		
+		
+		
+		if (abortFlag || uncertainFlag) {
+			System.out.println("deciding to abort!");
+			if(!state.equals(ABORT)) {
+				ThreePhaseCommitUtility.writeMessageToDTLog(processId, new LogRecord(currTrans, ABORT));
+			}
+			for (Integer participant : participants) {
+				netController.sendMsg(participant, ThreePhaseCommitUtility.serializeMessage(new Message(processId, currTrans, ABORT)));
+			}
+		} else if (commitFlag) {
+			System.out.println("deciding to commit!");
+			if(!state.equals(COMMIT)) {
+				ThreePhaseCommitUtility.writeMessageToDTLog(processId, new LogRecord(currTrans, COMMIT));
+			}
+			for (Integer participant : participants) {
+				netController.sendMsg(participant, ThreePhaseCommitUtility.serializeMessage(new Message(processId, currTrans, COMMIT)));
+			}
+		}
+		
+		System.out.println("completing termination protocol");
 	}
 }
