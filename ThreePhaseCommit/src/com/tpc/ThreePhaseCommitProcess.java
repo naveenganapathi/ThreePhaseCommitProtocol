@@ -162,9 +162,14 @@ public class ThreePhaseCommitProcess {
 								netController.sendMsg(coordinatorId, ThreePhaseCommitUtility.serializeMessage(ack));
 								participant_waiting_for=COMMIT;
 								//ThreePhaseCommitUtility.writeMessageToDTLog(processId, COMMIT);
+							}else if(msg.getMessage().equals(NEW_CO_OD)){
+								coordinatorId = msg.getProcessId();
 							}
 						}
 						receivedMsgs.clear();
+						// if the participant is the new co-ordinator, then break and go to the mail while loop
+						if(coordinatorId == processId)
+							break;
 					}
 				}
 			}
