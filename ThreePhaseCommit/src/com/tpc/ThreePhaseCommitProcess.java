@@ -28,7 +28,7 @@ public class ThreePhaseCommitProcess {
 			throw new IllegalArgumentException("please provide intial co-ordinator id and current process id");
 		}
 		try {
-			NetController netController = new NetController(new Config("C:\\Users\\vignesh\\git\\ThreePhaseCommitProtocol\\ThreePhaseCommit\\bin\\com\\tpc\\util\\"+"config_"+args[1]+".txt"));			
+			NetController netController = new NetController(new Config("/home/naveen/git/ThreePhaseCommitProtocol/ThreePhaseCommit/bin/com/tpc/util/config_"+args[1]+".txt"));			
 			List<Integer> activeProcesses = new ArrayList<Integer>();
 			Map<String,String> playList;
 			int processId = Integer.parseInt(args[0]);
