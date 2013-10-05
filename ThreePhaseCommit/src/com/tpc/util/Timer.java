@@ -27,4 +27,9 @@ public class Timer {
 			return false;
 		}
 	}
+	
+	public void start() {
+		this.start = new Date().getTime();
+				
+	}
 }
