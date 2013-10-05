@@ -33,9 +33,9 @@ public class Config {
 		ports = new int[numProcesses];
 		for (int i=0; i < numProcesses; i++) {
 			ports[i] = loadInt(prop, "port" + i);
-			addresses[i] = InetAddress.getByName(prop.getProperty("host" + i).trim());
+			addresses[i] = InetAddress.getByName(null);//prop.getProperty("host" + i).trim());
 		}
-		if (prop.getProperty("ProcNum") != null) {
+		if (prop.getProperty("procNum") != null) {
 			procNum = loadInt(prop,"procNum");
 		} else {
 			logger.info("procNum not loaded from file");
