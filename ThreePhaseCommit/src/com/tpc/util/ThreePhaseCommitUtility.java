@@ -3,19 +3,20 @@ package com.tpc.util;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map.Entry;
+import java.util.Set;
 
 public class ThreePhaseCommitUtility {
 	
-	private static String ACTIVE_PROCESS_FILENAME = "active_process_";
+	private static String ACTIVE_PROCESS_FILENAME = "bin/com/tpc/util/active_process_";
 	private static String LOCAL_STATE_FILENAME = "local_state_";
 	public static final String DT_LOG_FILE_PREFIX = "DT_log_";
 	/**
@@ -187,14 +188,15 @@ public class ThreePhaseCommitUtility {
 	 * @return
 	 * @throws IOException
 	 */
-	public static ArrayList<Integer> getActiveProcess(int processId) throws IOException{
+	public static Set<Integer> getActiveProcess(int processId) throws IOException{
 		BufferedReader br = null;	
-		ArrayList<Integer> processIdList = new ArrayList<Integer>();
+		Set<Integer> processIdList = new HashSet<Integer>();
 		String sCurrentLine; 
 		br = new BufferedReader(new FileReader(ACTIVE_PROCESS_FILENAME + "" + processId + ".txt")); 
 		while ((sCurrentLine = br.readLine()) != null) {
 			String[] psList = sCurrentLine.split(",");
 			for(String psListEntry : psList) {
+				if(!psListEntry.isEmpty())
 				processIdList.add(Integer.parseInt(psListEntry));
 			}
 		}
@@ -209,11 +211,11 @@ public class ThreePhaseCommitUtility {
 	 * @return
 	 * @throws IOException
 	 */
-	public static boolean saveActiveProcess(int processId, ArrayList<Integer> processIdList) throws IOException{
+	public static boolean saveActiveProcess(int processId, Set<Integer> processIdList) throws IOException{
 		if(processIdList == null || processIdList.isEmpty()) return false;
 		StringBuffer sb = new StringBuffer();
 		for(int pId : processIdList) {
-			sb.append(pId);
+			sb.append(pId+",");
 		}
 		File file = new File(ACTIVE_PROCESS_FILENAME + "" + processId +".txt");
 		if (!file.exists()) {
