@@ -102,7 +102,7 @@ public class NetController {
 			while (iter.hasNext()) {
 				IncomingSock curSock = iter.next();
 				try {
-					objs.addAll(curSock.getMsgs());
+					objs.addAll(curSock.getMsg());
 				} catch (Exception e) {
 					config.logger.log(Level.INFO, 
 							"Server " + config.procNum + " received bad data on a socket", e);

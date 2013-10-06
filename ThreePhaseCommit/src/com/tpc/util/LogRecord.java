@@ -54,6 +54,11 @@ public class LogRecord {
 			return false;
 		return true;
 	}
+
+	@Override
+	public String toString() {
+		return "LogRecord [transactionId=" + transactionId + ", message=" + message + "]";
+	}
 	
 	
 	

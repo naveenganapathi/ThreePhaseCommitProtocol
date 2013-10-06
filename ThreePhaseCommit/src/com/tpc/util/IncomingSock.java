@@ -39,6 +39,15 @@ public class IncomingSock extends Thread {
 		return msgs;
 	}
 	
+	protected List<String> getMsg() {
+		List<String> msgs = new ArrayList<String>();
+		String tmp;
+		tmp = queue.poll();
+		if(tmp!=null)
+			msgs.add(tmp);
+		return msgs;
+	}
+	
 	public void run() {
 		while (!shutdownSet) {
 			try {

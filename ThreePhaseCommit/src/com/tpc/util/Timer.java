@@ -6,6 +6,10 @@ public class Timer {
 
 	long start;
 	long timeoutInSeconds;
+	
+	public Timer(long a) {
+		timeoutInSeconds = a;
+	}
 	public long getStart() {
 		return start;
 	}

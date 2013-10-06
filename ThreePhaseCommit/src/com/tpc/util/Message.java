@@ -31,6 +31,10 @@ public class Message {
 	public void setTransactionId(int transactionId) {
 		this.transactionId = transactionId;
 	}
+	@Override
+	public String toString() {
+		return "Message [processId=" + processId + ", transactionId=" + transactionId + ", message=" + message + "]";
+	}
 	
 	
 }

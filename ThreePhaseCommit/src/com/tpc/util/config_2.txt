@@ -1,8 +1,8 @@
 NumProcesses=3
 
-port0=7000
-port1=7001
-port2=7002
+port0=12000
+port1=12001
+port2=12002
 
 host0=127.0.0.1
 host1=127.0.0.1

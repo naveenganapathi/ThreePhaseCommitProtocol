@@ -86,20 +86,24 @@ public class ThreePhaseCommitUtility {
 	 * @throws IOException
 	 */
 	public static LogRecord fetchMessageFromDTLog(int process) throws IOException  {
-		BufferedReader br = new BufferedReader(new FileReader(DT_LOG_FILE_PREFIX+process+".txt"));
-		String temp,res = null;
-		while((temp = br.readLine()) != null) {
-			res = temp;
-		}
-		br.close();
-		if (res == null) {
+		try {
+			BufferedReader br = new BufferedReader(new FileReader(DT_LOG_FILE_PREFIX+process+".txt"));
+			String temp,res = null;
+			while((temp = br.readLine()) != null) {
+				res = temp;
+			}
+			br.close();
+			if (res == null) {
+				return null;
+			}
+			String val[] = res.split(":");
+			LogRecord record = new LogRecord();
+			record.setMessage(val[1]);
+			record.setTransactionId(Integer.parseInt(val[0]));
+			return record;
+		} catch (Exception e) {
 			return null;
-		}
-		String val[] = res.split(":");
-		LogRecord record = new LogRecord();
-		record.setMessage(val[1]);
-		record.setTransactionId(Integer.parseInt(val[0]));
-		return record;
+		}		
 	}
 
 	/**
