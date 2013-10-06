@@ -34,6 +34,7 @@ public class ThreePhaseCommitProcess {
 	public static final String UNCERTAIN = "UNCERTAIN";
 	public static final String NEW_CO_OD = "NEW_CO_OD";
 	public static final String STATE_RESP = "STATE_RESP";
+	public static final String GET_DECISION = "GET_DECISION";
 	public static final int TIME_OUT_IN_SECONDS = 10;
 	private static final Logger log = Logger.getLogger("ThreePhaseCommitProcess");
 	private static final int NUM_PARTICIPANTS = 2;
@@ -52,16 +53,46 @@ public class ThreePhaseCommitProcess {
 		try {
 			netController = new NetController(new Config("C:\\Users\\vignesh\\git\\ThreePhaseCommitProtocol\\ThreePhaseCommit\\bin\\com\\tpc\\util\\" + "config_" + args[1] + ".txt"));
 			processId = Integer.parseInt(args[1]);
-			coordinatorId = Integer.parseInt(args[0]);
+			coordinatorId = -1;
 			String myVote = YES;
-			activeProcesses.add(0);
-			activeProcesses.add(1);
-			activeProcesses.add(2);
+			activeProcesses = ThreePhaseCommitUtility.getActiveProcess(processId);
 
+			// read the recent log record for any change of state
+			LogRecord recentLog = ThreePhaseCommitUtility.fetchMessageFromDTLog(processId);
+			if(recentLog!=null) {
+				if(recentLog.getMessage().equals(YES)) {
+					List<Integer> participants = new ArrayList<Integer>(activeProcesses);
+					Message getDecision = new Message();
+					getDecision.setProcessId(processId);
+					getDecision.setMessage(GET_DECISION);
+					getDecision.setTransactionId(recentLog.getTransactionId());
+					for(Integer partcipant : participants)
+						netController.sendMsg(partcipant, ThreePhaseCommitUtility.serializeMessage(getDecision));
+					boolean gotDecision = false;
+					while(!gotDecision) {
+						List<String> receivedMsgs = new ArrayList<String>();
+						while (receivedMsgs.isEmpty()) {
+							receivedMsgs.addAll(netController.getReceivedMsgs());
+						}
+						System.out.println("Received messages while waiting for decision:"+receivedMsgs);
+						for (String message : receivedMsgs) {
+							Message msg = ThreePhaseCommitUtility.deserializeMessage(message);
+							if(msg.getTransactionId() == recentLog.getTransactionId() && (msg.getMessage().equals(COMMIT)
+									|| msg.getMessage().equals(ABORT))) {
+								ThreePhaseCommitUtility.writeMessageToDTLog(processId, new LogRecord(msg.getTransactionId(), msg.getMessage()));
+								gotDecision = true;
+								break;
+							}
+						}
+					}
+				} 
+			} else {
+				coordinatorId = Integer.parseInt(args[0]);
+			}
+			
 			int cnt = 0;
 			// current process is the initial co-ordinator
 			while (true) {
-				
 				if (processId == coordinatorId) {
 					while (cnt < 2) {
 						cnt++;
@@ -131,7 +162,7 @@ public class ThreePhaseCommitProcess {
 						// all processes have sent yes! COMMIT away
 						if (!abortFlag && myVote.equals(YES)) {
 							System.out.println("everyone has sent yes. sending PRE COMMIT");
-							
+
 							Message preCommitMessage = new Message(processId, currTrans, PRE_COMMIT);
 							for (Integer parts : participants) {
 								netController.sendMsg(parts, ThreePhaseCommitUtility.serializeMessage(preCommitMessage));
@@ -194,7 +225,9 @@ public class ThreePhaseCommitProcess {
 						System.out.println("Received messages :"+receivedMsgs);
 						for (String message : receivedMsgs) {
 							Message msg = ThreePhaseCommitUtility.deserializeMessage(message);
-							if (msg.getProcessId() == coordinatorId && msg.getMessage().equals(VOTE_REQ)) {
+							if (msg.getMessage().equals(VOTE_REQ)) {
+								// set this as the new co-ordinator
+								if(msg.getProcessId() != coordinatorId ) coordinatorId = msg.getProcessId();
 								System.out.println("Process "+processId+" received a vote request");
 								currTrans = msg.getTransactionId();
 								Message voteYes = new Message();
@@ -221,10 +254,19 @@ public class ThreePhaseCommitProcess {
 								participant_waiting_for=COMMIT;
 								System.out.println("Process "+processId+" voted with an ACK and waiting for "+participant_waiting_for);
 								//ThreePhaseCommitUtility.writeMessageToDTLog(processId, COMMIT);
-							}else if(msg.getMessage().equals(NEW_CO_OD)){
+							} else if(msg.getMessage().equals(NEW_CO_OD)){
 								System.out.println("Process "+processId+" got a NEW_CO_OD from process "+msg.getProcessId());
 								coordinatorId = msg.getProcessId();
 								participantTerminationProtocol();
+							} else if(msg.getMessage().equals(GET_DECISION)){
+								System.out.println("Process "+processId+" got a GET_DECISION from process "+msg.getProcessId());
+								LogRecord log = ThreePhaseCommitUtility.fetchRecordForTransaction(processId, msg.getTransactionId());
+								Message decision = new Message();
+								decision.setMessage(log.getMessage());
+								decision.setProcessId(processId);
+								decision.setTransactionId(log.getTransactionId());
+								netController.sendMsg(msg.getProcessId(), ThreePhaseCommitUtility.serializeMessage(decision));
+								System.out.println("Process "+processId+" has sent a response to a GET_DECISION "+decision);
 							}
 						}
 						receivedMsgs.clear();
@@ -379,7 +421,7 @@ public class ThreePhaseCommitProcess {
 				}
 			}
 		}		
-	
+
 		if (abortFlag) {
 			System.out.println("deciding to abort!");
 			if(!state.equals(ABORT)) {
@@ -401,15 +443,15 @@ public class ThreePhaseCommitProcess {
 			for (Integer participant : uncertainProcesses) {
 				netController.sendMsg(participant, ThreePhaseCommitUtility.serializeMessage(new Message(processId, currTrans, PRE_COMMIT)));
 			}
-			
+
 			Timer ackTimer = new Timer(TIME_OUT_IN_SECONDS);
 			ackTimer.start();
 			List<String> ackMsgs = new ArrayList<String>();
-			
+
 			while( ackMsgs.size() != uncertainProcesses.size() || !ackTimer.hasTimedOut() ) {
 				ackMsgs.addAll(netController.getReceivedMsgs());
 			}
-			
+
 			System.out.println("sending commit to all processes");
 			ThreePhaseCommitUtility.writeMessageToDTLog(processId, new LogRecord(currTrans, COMMIT));
 			for (Integer participant : participants) {
