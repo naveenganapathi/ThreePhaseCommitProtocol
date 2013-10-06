@@ -260,13 +260,7 @@ public class ThreePhaseCommitProcess {
 								participantTerminationProtocol();
 							} else if(msg.getMessage().equals(GET_DECISION)){
 								System.out.println("Process "+processId+" got a GET_DECISION from process "+msg.getProcessId());
-								LogRecord log = ThreePhaseCommitUtility.fetchRecordForTransaction(processId, msg.getTransactionId());
-								Message decision = new Message();
-								decision.setMessage(log.getMessage());
-								decision.setProcessId(processId);
-								decision.setTransactionId(log.getTransactionId());
-								netController.sendMsg(msg.getProcessId(), ThreePhaseCommitUtility.serializeMessage(decision));
-								System.out.println("Process "+processId+" has sent a response to a GET_DECISION "+decision);
+								handleGetDecision(msg);								
 							}
 						}
 						receivedMsgs.clear();
@@ -277,6 +271,16 @@ public class ThreePhaseCommitProcess {
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
+	}
+	
+	public static void handleGetDecision(Message msg) throws IOException {
+		LogRecord log = ThreePhaseCommitUtility.fetchRecordForTransaction(processId, msg.getTransactionId());
+		Message decision = new Message();
+		decision.setMessage(log.getMessage());
+		decision.setProcessId(processId);
+		decision.setTransactionId(log.getTransactionId());
+		netController.sendMsg(msg.getProcessId(), ThreePhaseCommitUtility.serializeMessage(decision));
+		System.out.println("Process "+processId+" has sent a response to a GET_DECISION "+decision);
 	}
 
 	public static void initiateElection() {
@@ -359,6 +363,9 @@ public class ThreePhaseCommitProcess {
 						ThreePhaseCommitUtility.writeMessageToDTLog(processId, new LogRecord(msg.getTransactionId(), COMMIT));
 					System.out.println("Process "+processId+" received commit during the termination protocol");
 					notCommitted = false;
+				} else if(msg.getMessage().equals(GET_DECISION)){
+					System.out.println("Process "+processId+" got a GET_DECISION from process "+msg.getProcessId());
+					handleGetDecision(msg);								
 				} else {
 					Message ack = new Message();
 					ack.setProcessId(processId);
