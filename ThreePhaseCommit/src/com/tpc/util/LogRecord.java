@@ -4,9 +4,16 @@ public class LogRecord {
 
 	private int transactionId;
 	private String message;
+	PlaylistCommand playListCommand;
 	
 	public LogRecord(int transactionId,String message) {
 		this.transactionId = transactionId;
+		this.message = message;
+	}
+	
+	public LogRecord(int transactionId,String message,PlaylistCommand playListCommand) {
+		this.transactionId = transactionId;
+		this.playListCommand = playListCommand;
 		this.message = message;
 	}
 	
@@ -58,6 +65,14 @@ public class LogRecord {
 	@Override
 	public String toString() {
 		return "LogRecord [transactionId=" + transactionId + ", message=" + message + "]";
+	}
+
+	public PlaylistCommand getPlayListCommand() {
+		return playListCommand;
+	}
+
+	public void setPlayListCommand(PlaylistCommand playListCommand) {
+		this.playListCommand = playListCommand;
 	}
 	
 	

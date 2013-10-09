@@ -30,9 +30,11 @@ public class NetController {
 	private final List<IncomingSock> inSockets;
 	private final OutgoingSock[] outSockets;
 	private final ListenServer listener;
+	private final FaultModel m;
 	
-	public NetController(Config config) {
+	public NetController(Config config, FaultModel m) {
 		this.config = config;
+		this.m = m;
 		inSockets = Collections.synchronizedList(new ArrayList<IncomingSock>());
 		listener = new ListenServer(config, inSockets);
 		outSockets = new OutgoingSock[config.numProcesses];
@@ -56,12 +58,21 @@ public class NetController {
 	 * @param msg Do not use the "&" character.  This is hardcoded as a message separator. 
 	 *            Sends as ASCII.  Include the sending server ID in the message
 	 * @return bool indicating success
+	 * @throws Exception 
 	 */
-	public synchronized boolean sendMsg(int process, String msg) {
+	public synchronized boolean sendMsg(int process, String msg) throws Exception {
 		try {
 			if (outSockets[process] == null)
 				initOutgoingConn(process);
+			if (m.hasBreached()) {
+				throw new Exception ("introducing fault based on fault model before sending"+msg);
+			}
 			outSockets[process].sendMsg(msg);
+			Message mObj = ThreePhaseCommitUtility.deserializeMessage(msg);
+			m.updateModel("SEND,"+mObj.getMessage());
+			if (m.hasBreached()) {
+				throw new Exception ("introducing fault based on fault model after sending" +msg);
+			}
 		} catch (IOException e) { 
 			if (outSockets[process] != null) {
 				outSockets[process].cleanShutdown();
@@ -102,7 +113,18 @@ public class NetController {
 			while (iter.hasNext()) {
 				IncomingSock curSock = iter.next();
 				try {
-					objs.addAll(curSock.getMsg());
+					if (m.hasBreached()) {
+						throw new Exception ("introducing fault based on fault model before receiving");
+					}
+					List<String> recMsg = curSock.getMsg();
+					if (!recMsg.isEmpty()) {
+						Message rmsg = ThreePhaseCommitUtility.deserializeMessage(recMsg.get(0));
+						objs.addAll(recMsg);
+						m.updateModel("RECEIVE,"+rmsg.getMessage());
+						if (m.hasBreached()) {
+							throw new Exception ("introducing fault based on fault model after receiving"+recMsg);
+						}
+					}					
 				} catch (Exception e) {
 					config.logger.log(Level.INFO, 
 							"Server " + config.procNum + " received bad data on a socket", e);
