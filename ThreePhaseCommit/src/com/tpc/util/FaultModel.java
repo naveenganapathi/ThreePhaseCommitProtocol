@@ -9,11 +9,23 @@ public class FaultModel {
 	public FaultModel(String condn) {
 		if(condn==null) return;
 		String t[] = condn.split(",");
-		Vals.put(t[0]+","+t[1], Integer.parseInt(t[2]));
+		int v = Integer.parseInt(t[2]);
+		if(t[0].equals("RECEIVE")) {
+			v++;
+		}
+		Vals.put(t[0]+","+t[1], v);
+		
 	}
 	
-	boolean hasBreached() {
-		return this.Vals.containsValue(0);
+//	boolean hasBreached() {
+//		return this.Vals.containsValue(0);
+//	}
+	
+	boolean hasBreached(String key) {
+		if(this.Vals.containsKey(key)) {
+			return (this.Vals.get(key) == 0);
+		}
+		return false;
 	}
 	
 	void updateModel(String val) {

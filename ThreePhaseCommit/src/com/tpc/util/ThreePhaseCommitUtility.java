@@ -267,18 +267,21 @@ public class ThreePhaseCommitUtility {
 	}
 
 	public static void removeTopPlaylistCommand() throws IOException {
+		System.out.println("here to remove the top playlist command");
 		BufferedReader br = new BufferedReader(new FileReader(INPUT_PLAYLIST_COMMAND_FILENAME));
 		String temp;
 		String[] res = new String[100];
 		int i=0;
 		while((temp = br.readLine()) != null) {
 			res[i++] = temp;
+			//System.out.println("reading -"+res[i-1]);
 		}
 		br.close();
 		PrintWriter out = new PrintWriter(new FileWriter(INPUT_PLAYLIST_COMMAND_FILENAME,false));
 		int j=1;
 		while(j<i) {
 			out.println(res[j]);
+			//System.out.println("writing - "+res[j]);
 			j++;
 		}
 		out.close();

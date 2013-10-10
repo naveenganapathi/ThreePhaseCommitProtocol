@@ -64,13 +64,13 @@ public class NetController {
 		try {
 			if (outSockets[process] == null)
 				initOutgoingConn(process);
-			if (m.hasBreached()) {
+			Message mObj = ThreePhaseCommitUtility.deserializeMessage(msg);
+			if (m.hasBreached("SEND,"+mObj.getMessage())) {
 				throw new Exception ("introducing fault based on fault model before sending"+msg);
 			}
-			outSockets[process].sendMsg(msg);
-			Message mObj = ThreePhaseCommitUtility.deserializeMessage(msg);
+			outSockets[process].sendMsg(msg);		
 			m.updateModel("SEND,"+mObj.getMessage());
-			if (m.hasBreached()) {
+			if (m.hasBreached("SEND,"+mObj.getMessage())) {
 				throw new Exception ("introducing fault based on fault model after sending" +msg);
 			}
 		} catch (IOException e) { 
@@ -104,24 +104,25 @@ public class NetController {
 	
 	/**
 	 * Return a list of msgs received on established incoming sockets
-	 * @return list of messages sorted by socket, in FIFO order. *not sorted by time received*
+	 * @return list of messages sorted by socket, in FIFO order. *not sorted by time received
+	 * @throws Exception *
 	 */
-	public synchronized List<String> getReceivedMsgs() {
+	public synchronized List<String> getReceivedMsgs() throws Exception {
 		List<String> objs = new ArrayList<String>();
 		synchronized(inSockets) {
 			ListIterator<IncomingSock> iter  = inSockets.listIterator();
 			while (iter.hasNext()) {
 				IncomingSock curSock = iter.next();
 				try {
-					if (m.hasBreached()) {
-						throw new Exception ("introducing fault based on fault model before receiving");
-					}
+// 					if (m.hasBreached("RECEIVE,"+rmsg.getMessage())) {
+//						throw new Exception ("introducing fault based on fault model before receiving");
+//					}
 					List<String> recMsg = curSock.getMsg();
 					if (!recMsg.isEmpty()) {
 						Message rmsg = ThreePhaseCommitUtility.deserializeMessage(recMsg.get(0));
 						objs.addAll(recMsg);
-						m.updateModel("RECEIVE,"+rmsg.getMessage());
-						if (m.hasBreached()) {
+						m.updateModel("RECEIVE,"+rmsg.getMessage());						
+						if (m.hasBreached("RECEIVE,"+rmsg.getMessage())) {
 							throw new Exception ("introducing fault based on fault model after receiving"+recMsg);
 						}
 					}					
@@ -130,6 +131,7 @@ public class NetController {
 							"Server " + config.procNum + " received bad data on a socket", e);
 					curSock.cleanShutdown();
 					iter.remove();
+					throw e;
 				}
 			}
 		}
