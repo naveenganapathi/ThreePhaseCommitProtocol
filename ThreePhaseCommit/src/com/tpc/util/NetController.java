@@ -31,10 +31,12 @@ public class NetController {
 	private final OutgoingSock[] outSockets;
 	private final ListenServer listener;
 	private final FaultModel m;
+	private final int delay;
 	
-	public NetController(Config config, FaultModel m) {
+	public NetController(Config config, FaultModel m, int delay) {
 		this.config = config;
 		this.m = m;
+		this.delay=delay;
 		inSockets = Collections.synchronizedList(new ArrayList<IncomingSock>());
 		listener = new ListenServer(config, inSockets);
 		outSockets = new OutgoingSock[config.numProcesses];
@@ -68,6 +70,7 @@ public class NetController {
 			if (m.hasBreached("SEND,"+mObj.getMessage())) {
 				throw new Exception ("introducing fault based on fault model before sending"+msg);
 			}
+			Thread.sleep(this.delay);
 			outSockets[process].sendMsg(msg);		
 			m.updateModel("SEND,"+mObj.getMessage());
 			if (m.hasBreached("SEND,"+mObj.getMessage())) {

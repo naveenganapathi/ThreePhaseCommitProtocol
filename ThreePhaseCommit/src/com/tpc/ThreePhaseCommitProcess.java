@@ -43,8 +43,9 @@ public class ThreePhaseCommitProcess {
 	public static final String STATE_RESP = "STATE_RESP";
 	public static final String GET_DECISION = "GET_DECISION";
 //	public static final int TIME_OUT_IN_SECONDS = 10;
-	public static final int COORDINATOR_TIME_OUT_IN_SECONDS = 10;
-	public static final int PARTICIPANT_TIME_OUT_IN_SECONDS = 15;
+	public static int COORDINATOR_TIME_OUT_IN_SECONDS = 10;
+	public static int PARTICIPANT_TIME_OUT_IN_SECONDS = 15;
+	public static int GET_DECISION_TIME_OUT_IN_SECONDS = 15;
 	private static final Logger log = Logger.getLogger("ThreePhaseCommitProcess");
 	private static final int NUM_PARTICIPANTS = 2;
 	public static int currTrans = 0;
@@ -59,21 +60,27 @@ public class ThreePhaseCommitProcess {
 	private static boolean canParticipate = false;
 	private static boolean hasElectionHappened = false;
 	private static int previousCoordinatorId;
+	private static int delay;
 
 	public static void main(String args[]) {
-		if (args.length < 2) {
+		if (args.length < 3) {
 			throw new IllegalArgumentException("please provide intial co-ordinator id and current process id");
 		}
 		try {
-			String t=null;
-			if(args.length == 3)
-				t=args[2];
-			netController = new NetController(new Config("bin/com/tpc/util/" + "config_" + args[1] + ".txt"), new FaultModel(t));
+			String t=null;			
+			if(args.length == 4)
+				t=args[3];
+			delay = Integer.parseInt(args[2]);
+			COORDINATOR_TIME_OUT_IN_SECONDS+=delay*NUM_PARTICIPANTS;
+			PARTICIPANT_TIME_OUT_IN_SECONDS+=delay*NUM_PARTICIPANTS;
+			GET_DECISION_TIME_OUT_IN_SECONDS+=delay*NUM_PARTICIPANTS;
+			netController = new NetController(new Config("bin/com/tpc/util/" + "config_" + args[1] + ".txt"), new FaultModel(t), delay* 1000);
 			processId = Integer.parseInt(args[1]);
 			
 			coordinatorId = -1;
 			String myVote = YES;
 			activeProcesses = ThreePhaseCommitUtility.getActiveProcess(processId);
+			System.out.println("active processes list obtained from log is"+activeProcesses);
 			playList = ThreePhaseCommitUtility.fetchLocalState(processId);
 			
 			// read the recent log record for any change of state
@@ -92,9 +99,11 @@ public class ThreePhaseCommitProcess {
 						for(Integer partcipant : participants) {
 							netController.sendMsg(partcipant, ThreePhaseCommitUtility.serializeMessage(getDecision));
 						}
-						System.out.println("Process "+processId+" has sent a GET_DECISION message");
+						System.out.println("Process "+processId+" has sent a GET_DECISION message to "+activeProcesses);
 						List<String> receivedMsgs = new ArrayList<String>();
-						while (receivedMsgs.isEmpty()) {
+						Timer getDecisionTimer = new Timer(GET_DECISION_TIME_OUT_IN_SECONDS);
+						getDecisionTimer.start();
+						while (receivedMsgs.isEmpty() && !getDecisionTimer.hasTimedOut()) {
 							receivedMsgs.addAll(netController.getReceivedMsgs());
 						}
 						System.out.println("Received messages while waiting for decision:"+receivedMsgs);
@@ -110,7 +119,9 @@ public class ThreePhaseCommitProcess {
 							}
 						}
 					}
-				} 
+				} else {
+					canParticipate=true;
+				}
 			} else {
 				coordinatorId = Integer.parseInt(args[0]);
 				canParticipate=true;
@@ -120,7 +131,7 @@ public class ThreePhaseCommitProcess {
 			// current process is the initial co-ordinator
 			while (true) {
 				if (processId == coordinatorId) {
-					hasElectionHappened = false;
+					
 					while (ThreePhaseCommitUtility.getPlaylistCommand() != null && ThreePhaseCommitUtility.getPlaylistCommand().getAction() != null) {
 						currentCommand = ThreePhaseCommitUtility.getPlaylistCommand();
 						cnt++;
@@ -128,6 +139,7 @@ public class ThreePhaseCommitProcess {
 						System.out.println("current cnt:"+cnt);
 						currTrans++;
 						List<Integer> totalParticipants = new ArrayList<Integer>();
+						System.out.println("reinitializing active processes");
 						for (int i =0;i<= NUM_PARTICIPANTS;i++) {
 							if (i != processId)
 								totalParticipants.add(i);
@@ -309,6 +321,7 @@ public class ThreePhaseCommitProcess {
 									activeProcesses.remove((Object)new Integer(coordinatorId));
 									System.out.println("active processes "+activeProcesses);
 									ThreePhaseCommitUtility.saveActiveProcess(processId, activeProcesses);
+									hasElectionHappened = false;
 								}
 								coordinatorId = msg.getProcessId();
 								participantTerminationProtocol();
@@ -320,7 +333,6 @@ public class ThreePhaseCommitProcess {
 							}
 						}
 						receivedMsgs.clear();
-						hasElectionHappened = false;
 					}
 				}
 			}
@@ -335,7 +347,7 @@ public class ThreePhaseCommitProcess {
 		if("ADD".equals(playlistCommand.getAction())) {
 			playList.put(playlistCommand.getSongName(), playlistCommand.getUrl());
 		} else if("REMOVE".equals(playlistCommand.getAction())) {
-			System.out.println("removing" + playList.remove(playlistCommand.getSongName()));
+			playList.remove(playlistCommand.getSongName());
 		} else {
 			if(playList.get(playlistCommand.getSongName())!=null) {
 				playList.remove(playlistCommand.getSongName());
@@ -367,6 +379,7 @@ public class ThreePhaseCommitProcess {
 		msgs.removeAll(toBeRemoved);
 	}
 	public static void handleGetDecision(Message msg) throws Exception {
+		System.out.println("Starting to handle GET_DECISION message");
 		LogRecord log = ThreePhaseCommitUtility.fetchRecordForTransaction(processId, msg.getTransactionId());
 		Message decision = new Message();
 		decision.setMessage(log.getMessage());
@@ -380,6 +393,7 @@ public class ThreePhaseCommitProcess {
 	}
 
 	public static void initiateElection() throws Exception {
+		hasElectionHappened = true;
 		System.out.println("Process "+processId+" is initiating election protocol");
 		int oldCoordinatorId = coordinatorId;
 		int newCoordinatorId = (coordinatorId + 1) % (NUM_PARTICIPANTS + 1);
@@ -388,6 +402,7 @@ public class ThreePhaseCommitProcess {
 		System.out.println("removing processes "+oldCoordinatorId);
 		System.out.println("active processes "+activeProcesses);
 		activeProcesses.remove((Object)new Integer(oldCoordinatorId));
+		ThreePhaseCommitUtility.saveActiveProcess(coordinatorId, activeProcesses);
 		System.out.println("active processes "+activeProcesses);
 		if (processId == newCoordinatorId) {
 			System.out.println("Process "+processId+" has selected "+newCoordinatorId+" as the new co-ordinator");
@@ -406,7 +421,6 @@ public class ThreePhaseCommitProcess {
 				netController.sendMsg(parts, ThreePhaseCommitUtility.serializeMessage(newCood));
 			}
 		}
-		ThreePhaseCommitUtility.saveActiveProcess(coordinatorId, activeProcesses);
 		System.out.println("Process "+processId+" has ended the election protocol");
 	}
 
@@ -572,10 +586,10 @@ public class ThreePhaseCommitProcess {
 			System.out.println("sending commit to all processes");
 			ThreePhaseCommitUtility.writeMessageToDTLog(processId, new LogRecord(currTrans, COMMIT, currentCommand));
 			ThreePhaseCommitUtility.removeTopPlaylistCommand();
+			executeCommand(currentCommand);
 			for (Integer participant : participants) {
 				netController.sendMsg(participant, ThreePhaseCommitUtility.serializeMessage(new Message(processId, currTrans, COMMIT,currentCommand)));
 			}
-			executeCommand(currentCommand);
 			System.out.println("sent commit to all processes");
 		} else {
 			System.out.println("all of em are uncertain. aborting transaction");
