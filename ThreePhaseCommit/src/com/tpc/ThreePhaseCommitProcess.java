@@ -427,11 +427,12 @@ public class ThreePhaseCommitProcess {
 	public static void participantTerminationProtocol() throws Exception {
 		System.out.println("Process "+processId+" is initiating participant termination protocol");
 		List<String> receivedMsgs = new ArrayList<String>();
-		Timer timer = new Timer(PARTICIPANT_TIME_OUT_IN_SECONDS);
-		timer.start();
 		boolean notCommitted = true;
 		System.out.println("Process "+processId+" is waiting for STATE_REQ");
 		while(notCommitted && processId!=coordinatorId) {
+			Timer timer = new Timer(PARTICIPANT_TIME_OUT_IN_SECONDS);
+			timer.start();
+			
 			while (receivedMsgs.isEmpty() && !timer.hasTimedOut()) {
 				receivedMsgs.addAll(netController.getReceivedMsgs());
 			}
@@ -475,6 +476,7 @@ public class ThreePhaseCommitProcess {
 					System.out.println("Process "+processId+" received abort during the termination protocol");
 					participant_waiting_for="";
 					notCommitted = false;
+					my_current_state=ABORTED;
 				} else if(msg.getProcessId() == coordinatorId && msg.getMessage().equals(COMMIT)){
 					LogRecord myState = ThreePhaseCommitUtility.fetchRecordForTransaction(processId, msg.getTransactionId());
 					if(!myState.getMessage().equals(COMMIT)) {
@@ -482,12 +484,14 @@ public class ThreePhaseCommitProcess {
 						executeCommand(msg.getPlaylistCommand());
 					}
 					participant_waiting_for="";
+					my_current_state=COMMIT;
 					System.out.println("Process "+processId+" received commit during the termination protocol");
 					notCommitted = false;
 				} else if(msg.getMessage().equals(GET_DECISION)){
 					System.out.println("Process "+processId+" got a GET_DECISION from process "+msg.getProcessId());
 					handleGetDecision(msg);								
 				} else if(msg.getMessage().equals(PRE_COMMIT)){
+					my_current_state=PRE_COMMIT;
 					Message ack = new Message();
 					ack.setProcessId(processId);
 					ack.setMessage(ACK);
